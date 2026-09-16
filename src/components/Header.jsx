@@ -34,7 +34,7 @@ export default function Header({ currentIntensity = 125 }) {
           <Activity size={16} className="status-pulse-icon" />
           <div className="status-info">
             <span className="status-label">Mumbai Live Intensity</span>
-            <span className="status-value">{currentIntensity} gCO₂eq/kWh (Optimal)</span>
+            <span className="status-value">{currentIntensity} gCO₂eq/kWh</span>
           </div>
         </div>
 

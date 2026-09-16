@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scheduleWorkload } from '../utils/scheduler';
+import { scheduleJob } from '../utils/api';
 import { 
   JOB_TYPES, 
   AWS_REGIONS, 
@@ -62,53 +62,65 @@ export default function ScheduleWorkload({ onAddJob, carbonForecast = [] }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    setIsSubmitting(true);
+  if (!validate()) return;
 
-    setTimeout(() => {
-      // Execute carbon-aware scheduling logic
-      const result = scheduleWorkload(formData, carbonForecast);
+  setIsSubmitting(true);
+  setSchedulingResult(null);
 
-      const newJobId = `JOB-${Math.floor(1000 + Math.random() * 9000)}`;
-      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  try {
+    const requestBody = {
+      job_name: formData.name,
+      type: formData.type,
+      estimatedRuntime: parseInt(formData.estimatedRuntime, 10),
+      deadline: formData.deadline,
+      preferredRegion: formData.preferredRegion,
+      allowRegionChange: formData.allowRegionChange,
+      carbonAware: formData.carbonAware,
+      priority: formData.priority,
 
-      const completeJobObject = {
-        id: newJobId,
-        name: formData.name,
-        type: formData.type,
-        estimatedRuntime: parseInt(formData.estimatedRuntime, 10),
-        actualRuntime: null,
-        deadline: formData.deadline,
-        selectedTime: result.selectedTime,
-        region: result.selectedRegion,
-        carbonIntensity: result.carbonIntensity,
-        estimatedEnergy: result.estimatedEnergy,
-        estimatedCO2: result.estimatedCO2,
-        co2Saved: result.co2Saved,
-        status: result.status,
-        priority: formData.priority,
-        allowRegionChange: formData.allowRegionChange,
-        carbonAware: formData.carbonAware,
-        createdAt: nowStr,
-        completedAt: null
-      };
+      carbonForecast: carbonForecast
+    };
 
-      // Add to global state
-      onAddJob(completeJobObject);
+    console.log("Sending to backend:", requestBody);
 
-      // Display result UI
-      setSchedulingResult({
-        ...result,
-        jobId: newJobId,
-        jobName: formData.name
-      });
+    const savedJob = await scheduleJob(requestBody);
 
-      setIsSubmitting(false);
-    }, 400);
-  };
+    console.log("Backend response:", savedJob);
+
+    // Add actual database job to React state
+    onAddJob(savedJob);
+
+    // Display backend scheduling result
+    setSchedulingResult({
+      selectedTime: savedJob.selectedTime,
+      selectedRegion: savedJob.region,
+      carbonIntensity: savedJob.carbonIntensity,
+      estimatedCO2: savedJob.estimatedCO2,
+      estimatedRuntime: savedJob.estimatedRuntime,
+      deadline: savedJob.deadline,
+      status: savedJob.status,
+      jobId: savedJob.jobId,
+      jobName: savedJob.name
+    });
+
+  } catch (error) {
+
+    console.error("Scheduling failed:", error);
+
+    setErrors({
+      submit: error.message || "Failed to schedule workload"
+    });
+
+  } finally {
+
+    setIsSubmitting(false);
+
+  }
+};
+
 
   return (
     <div className="page-container">
@@ -261,6 +273,11 @@ export default function ScheduleWorkload({ onAddJob, carbonForecast = [] }) {
                 >
                   {isSubmitting ? 'Computing Carbon-Aware Slot...' : 'Submit Workload'}
                 </button>
+                {errors.submit && (
+  <div className="field-error-text">
+    {errors.submit}
+  </div>
+)}
               </div>
             </form>
           </div>
